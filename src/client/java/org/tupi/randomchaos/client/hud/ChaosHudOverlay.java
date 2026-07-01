@@ -20,9 +20,9 @@ public final class ChaosHudOverlay {
             return;
         }
 
-        ClientChaosState s = ClientChaosState.INSTANCE;
+        ClientChaosState.Snapshot s = ClientChaosState.INSTANCE.snapshot();
 
-        long nowServer = s.serverTick + (mc.level.getGameTime() - s.clientGameTimeAtReceive);
+        long nowServer = s.serverTick() + (mc.level.getGameTime() - s.clientGameTimeAtReceive());
         if (nowServer < 0) {
             nowServer = 0;
         }
@@ -31,18 +31,18 @@ public final class ChaosHudOverlay {
         String line2 = null;
         String line3 = null;
 
-        if (s.challengeEndTick > 0) {
-            long duration = s.challengeEndTick - s.challengeStartTick;
+        if (s.challengeEndTick() > 0) {
+            long duration = s.challengeEndTick() - s.challengeStartTick();
             line1 = "FINISHED in " + fmtHMS(duration);
-        } else if (s.challengeStartTick == 0) {
+        } else if (s.challengeStartTick() == 0) {
             line1 = "Chaos  --:--:--";
         } else {
-            line1 = "Chaos  " + fmtHMS(nowServer - s.challengeStartTick);
-            line2 = "Next  " + fmtMS(Math.max(0, s.nextEventTick - nowServer));
-            if (!s.currentEventId.isEmpty() && nowServer < s.currentEffectExpiryTick) {
-                String event = humanize(s.currentEventId);
-                String victim = victimName(s.currentVictimUuid);
-                String remaining = fmtMS(s.currentEffectExpiryTick - nowServer);
+            line1 = "Chaos  " + fmtHMS(nowServer - s.challengeStartTick());
+            line2 = "Next  " + fmtMS(Math.max(0, s.nextEventTick() - nowServer));
+            if (!s.currentEventId().isEmpty() && nowServer < s.currentEffectExpiryTick()) {
+                String event = humanize(s.currentEventId());
+                String victim = victimName(s.currentVictimUuid());
+                String remaining = fmtMS(s.currentEffectExpiryTick() - nowServer);
                 line3 = "Now: " + event + " \u2192 " + victim + "  (" + remaining + ")";
             } else {
                 line3 = "Now: \u2014";
@@ -58,9 +58,9 @@ public final class ChaosHudOverlay {
         int x = screenW - maxW - 4;
         int y = 4;
 
-        if (s.challengeEndTick > 0) {
+        if (s.challengeEndTick() > 0) {
             g.text(mc.font, line1, x, y, 0x55FF55, true);
-        } else if (s.challengeStartTick == 0) {
+        } else if (s.challengeStartTick() == 0) {
             g.text(mc.font, line1, x, y, 0x808080, true);
         } else {
             g.text(mc.font, line1, x, y, 0xFFFFFF, true);

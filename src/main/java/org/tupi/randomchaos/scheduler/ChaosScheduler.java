@@ -74,21 +74,25 @@ public final class ChaosScheduler {
 		}
 
 		ChaosEvent event = ChaosEventRegistry.INSTANCE.pickRandom(rng);
+		boolean applied = true;
 		try {
 			event.apply(victim);
 		} catch (Throwable t) {
+			applied = false;
 			RandomChaosMod.LOGGER.error("Chaos event {} threw while applying to {}", event.id(), victim.getName().getString(), t);
 		}
 
-		int duration = clampDuration(event.defaultDurationTicks(), interval, cfg.effectCapRatio);
-		if (duration > 0) {
-			state.currentEventId = event.id().toString();
-			state.currentVictimUuid = victim.getUUID();
-			state.currentEffectExpiryTick = now + duration;
-		} else {
-			state.currentEventId = "";
-			state.currentVictimUuid = null;
-			state.currentEffectExpiryTick = 0;
+		if (applied) {
+			int duration = clampDuration(event.defaultDurationTicks(), interval, cfg.effectCapRatio);
+			if (duration > 0) {
+				state.currentEventId = event.id().toString();
+				state.currentVictimUuid = victim.getUUID();
+				state.currentEffectExpiryTick = now + duration;
+			} else {
+				state.currentEventId = "";
+				state.currentVictimUuid = null;
+				state.currentEffectExpiryTick = 0;
+			}
 		}
 
 		if (victim.getUUID().equals(state.lastVictimUuid)) {
@@ -127,6 +131,7 @@ public final class ChaosScheduler {
 	public static int clampDuration(int eventDurationTicks, int intervalTicks, double effectCapRatio) {
 		if (eventDurationTicks <= 0) return 0;
 		int cap = (int) Math.round(intervalTicks * effectCapRatio);
+		if (cap <= 0) return 0;
 		return Math.min(eventDurationTicks, cap);
 	}
 

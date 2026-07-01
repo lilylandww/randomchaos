@@ -16,8 +16,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class ChaosConfig {
-    public int intervalSeconds = 120;
-    public double effectCapRatio = 0.7;
+    public static final int DEFAULT_INTERVAL_SECONDS = 120;
+    public static final double DEFAULT_EFFECT_CAP_RATIO = 0.7;
+    private static final int MAX_INTERVAL_SECONDS = 86_400;
+
+    public int intervalSeconds = DEFAULT_INTERVAL_SECONDS;
+    public double effectCapRatio = DEFAULT_EFFECT_CAP_RATIO;
 
     private static volatile ChaosConfig instance;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -60,13 +64,13 @@ public final class ChaosConfig {
             loaded = new ChaosConfig();
         }
 
-        if (loaded.intervalSeconds <= 0) {
-            RandomChaosMod.LOGGER.warn("randomchaos.json: intervalSeconds must be > 0, clamping to 120");
-            loaded.intervalSeconds = 120;
+        if (loaded.intervalSeconds <= 0 || loaded.intervalSeconds > MAX_INTERVAL_SECONDS) {
+            RandomChaosMod.LOGGER.warn("randomchaos.json: intervalSeconds must be in (0, {}], clamping to {}", MAX_INTERVAL_SECONDS, DEFAULT_INTERVAL_SECONDS);
+            loaded.intervalSeconds = DEFAULT_INTERVAL_SECONDS;
         }
-        if (loaded.effectCapRatio <= 0.0 || loaded.effectCapRatio > 1.0) {
-            RandomChaosMod.LOGGER.warn("randomchaos.json: effectCapRatio must be in (0.0, 1.0], clamping to 0.7");
-            loaded.effectCapRatio = 0.7;
+        if (!Double.isFinite(loaded.effectCapRatio) || loaded.effectCapRatio <= 0.0 || loaded.effectCapRatio > 1.0) {
+            RandomChaosMod.LOGGER.warn("randomchaos.json: effectCapRatio must be a finite value in (0.0, 1.0], clamping to {}", DEFAULT_EFFECT_CAP_RATIO);
+            loaded.effectCapRatio = DEFAULT_EFFECT_CAP_RATIO;
         }
 
         instance = loaded;

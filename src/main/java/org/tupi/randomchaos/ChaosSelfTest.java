@@ -18,10 +18,12 @@ public final class ChaosSelfTest {
 	public static void run() {
 		ChaosSelfTest t = new ChaosSelfTest();
 		try {
-			t.testClampDuration();
-			t.testPickVictimUuidSinglePlayer();
-			t.testPickVictimUuidEmptyThrows();
-			t.testPickVictimUuidNoFiveInARow();
+		t.testClampDuration();
+		t.testClampDurationEdges();
+		t.testPickVictimUuidSinglePlayer();
+		t.testPickVictimUuidEmptyThrows();
+		t.testPickVictimUuidNoFiveInARow();
+		t.testPickVictimUuidFallback();
 		} catch (Throwable e) {
 			RandomChaosMod.LOGGER.error("Random Chaos self-test threw unexpectedly", e);
 			throw new AssertionError("self-test threw: " + e.getMessage(), e);
@@ -49,6 +51,12 @@ public final class ChaosSelfTest {
 		check("clamp: exact 70% cap applied (120s)", ChaosScheduler.clampDuration(2400, 2400, 0.7) == 1680, "got " + ChaosScheduler.clampDuration(2400, 2400, 0.7));
 		check("clamp: over-cap clamped to 70%", ChaosScheduler.clampDuration(9999, 2400, 0.7) == 1680, "got " + ChaosScheduler.clampDuration(9999, 2400, 0.7));
 		check("clamp: half interval clamped", ChaosScheduler.clampDuration(2400, 2400, 0.5) == 1200, "got " + ChaosScheduler.clampDuration(2400, 2400, 0.5));
+	}
+
+	private void testClampDurationEdges() {
+		check("clamp: zero interval yields zero cap", ChaosScheduler.clampDuration(100, 0, 0.7) == 0, "got " + ChaosScheduler.clampDuration(100, 0, 0.7));
+		check("clamp: negative duration treated as zero", ChaosScheduler.clampDuration(-50, 2400, 0.7) == 0, "got " + ChaosScheduler.clampDuration(-50, 2400, 0.7));
+		check("clamp: negative interval yields zero", ChaosScheduler.clampDuration(100, -100, 0.7) == 0, "got " + ChaosScheduler.clampDuration(100, -100, 0.7));
 	}
 
 	private void testPickVictimUuidSinglePlayer() {
@@ -105,5 +113,28 @@ public final class ChaosSelfTest {
 			observedMax = Math.max(observedMax, c);
 		}
 		check("pick: single survivor allowed past cap when no alternative", observedMax >= 5, "observedMax=" + observedMax + " (expected the only player to keep being picked)");
+	}
+
+	private void testPickVictimUuidFallback() {
+		UUID a = UUID.nameUUIDFromBytes(new byte[]{1});
+		UUID b = UUID.nameUUIDFromBytes(new byte[]{2});
+		List<UUID> players = Arrays.asList(a, b);
+		UUID picked = ChaosScheduler.pickVictimUuid(players, a, 4, new FixedIndexRng(0));
+		check("pick: 16-rejection fallback returns alternative", b.equals(picked), "got " + picked);
+	}
+
+	private static final class FixedIndexRng implements RandomSource {
+		private final int index;
+		FixedIndexRng(int index) { this.index = index; }
+		@Override public int nextInt(int bound) { return bound > 0 ? index % bound : 0; }
+		@Override public RandomSource fork() { return this; }
+		@Override public net.minecraft.world.level.levelgen.PositionalRandomFactory forkPositional() { throw new UnsupportedOperationException(); }
+		@Override public void setSeed(long seed) {}
+		@Override public int nextInt() { return index; }
+		@Override public long nextLong() { return 0L; }
+		@Override public boolean nextBoolean() { return false; }
+		@Override public float nextFloat() { return 0f; }
+		@Override public double nextDouble() { return 0.0; }
+		@Override public double nextGaussian() { return 0.0; }
 	}
 }
