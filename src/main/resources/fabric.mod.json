@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "randomchaos",
+	"version": "${version}",
+	"name": "Random Chaos",
+	"description": "A Fabric mod that injects random chaos events into the game.",
+	"authors": [
+		"tupi"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "MIT",
+	"icon": "assets/randomchaos/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"org.tupi.randomchaos.RandomChaosMod"
+		],
+		"client": [
+			"org.tupi.randomchaos.client.RandomChaosClient"
+		]
+	},
+	"mixins": [
+		"randomchaos.mixins.json",
+		{
+			"config": "randomchaos.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

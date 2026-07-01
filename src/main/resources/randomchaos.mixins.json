@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "org.tupi.randomchaos.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"RandomChaosMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
