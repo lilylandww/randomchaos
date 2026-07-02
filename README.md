@@ -38,8 +38,8 @@ Events are grouped into three difficulty tiers:
 
 | Tier | Examples | Effect |
 |---|---|---|
-| **MINOR** | hunger drain, spider spawn, cobble cage | Minor inconveniences |
-| **MEDIUM** | zombie spawn, mining fatigue, creeper, dizziness, rainbow road | Sabotage |
+| **MINOR** | hunger drain, spider spawn, cobble cage, adventure mode, clay fill, leaves on break | Minor inconveniences |
+| **MEDIUM** | zombie spawn, mining fatigue, creeper, dizziness, rainbow road, slowness, phoenix path | Sabotage |
 | **MAJOR** | blindness, teleport to ground, thunder ×3, crater | Severe disruption |
 
 The picker uses weighted random selection across tiers, with a hard ceiling:

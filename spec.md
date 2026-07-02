@@ -79,15 +79,30 @@ Canonical state lives on the **overworld** as a `SavedData` named
 | `currentEventId` | `String` | `""` = no active effect. The event's `Identifier` as a string otherwise. |
 | `currentVictimUuid` | `UUID?` | `null` = no active effect. |
 | `currentEffectExpiryTick` | `long` | `0` = no active effect. |
+| `currentEffectStartTick` | `long` | `0` = no active effect. Tick when the active effect began (for HUD elapsed display). |
 | `lastVictimUuid` | `UUID?` | For the no-5-in-a-row rule. |
 | `consecutivePicks` | `int` | Times `lastVictimUuid` was picked in a row. |
+| `picksSinceLastMajor` | `int` | Picks since the last MAJOR event (for MAJOR cooldown). |
+| `deferredActions` | `List<DeferredAction>` | Queued delayed actions (e.g. lightning). Max 64; stale after 6000 ticks. |
+| `pendingGameModeRestores` | `Map<UUID, GameType>` | Persisted game modes for players switched to adventure mode. Restored on event end or rejoin. |
 
 Serialization is codec-based (`ChaosState.CODEC`).
 
 ### Networking (S2C)
 `ChaosStatePayload` (`randomchaos:id("state")`) is broadcast to all clients
-on every state change and once per second. It carries `serverTick` (so clients
-can compute live countdowns) plus a mirror of the state fields above.
+on every state change and once per second. It carries:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `serverTick` | `long` | Current server tick (for live countdowns). |
+| `challengeStartTick` | `long` | From state. |
+| `challengeEndTick` | `long` | From state. |
+| `nextEventTick` | `long` | From state. |
+| `currentEventId` | `String` | From state. |
+| `currentVictimUuid` | `UUID?` | From state. |
+| `currentEffectExpiryTick` | `long` | From state. |
+| `currentEffectStartTick` | `long` | From state (for HUD elapsed display). |
+| `intervalTicks` | `long` | Current config interval (for client-side calculations). |
 
 ## 5. Victim selection — "no 5 in a row"
 
@@ -103,12 +118,44 @@ can compute live countdowns) plus a mirror of the state fields above.
 Verified by `ChaosSelfTest` at startup (500-iteration invariant check: max
 observed run ≤ 4, except the single-survivor case).
 
-## 6. Configuration
+## 6. Deferred actions
+
+Some events need to schedule delayed effects (e.g. lightning strikes that land
+a few ticks after the event fires). `DeferredAction` records are queued in
+`ChaosState.deferredActions` and drained each tick by `ChaosScheduler`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `fireAtTick` | `long` | Tick at which the action should execute. |
+| `victimUuid` | `UUID` | Target player. |
+| `kind` | `String` | Action type (currently only `"lightning"`). |
+
+**Constraints:**
+- Max queue size: 64 (`DeferredAction.MAX_QUEUE`). Oldest actions are dropped if exceeded.
+- Stale threshold: 6000 ticks (`DeferredAction.STALE_TICKS`). Actions older than this are silently discarded.
+- If the victim is offline when the action fires, it is skipped.
+
+## 7. Lifecycle — disconnect & game mode persistence
+
+### Disconnect handling
+When a player disconnects while they are the victim of an active timed event,
+`ChaosLifecycle` immediately ends the event (calls `onEnd`, clears state) and
+broadcasts the update. This prevents orphaned effects.
+
+### Game mode persistence
+`AdventureModeEvent` switches the victim to adventure mode and stores their
+previous game mode in `ChaosState.pendingGameModeRestores`. On event end, the
+mode is restored. If the player disconnects before the event ends, or the
+server restarts, the pending restore is persisted. On rejoin, `ChaosLifecycle`
+checks if the effect is still active; if not, it restores the saved game mode
+immediately.
+
+## 8. Configuration
 
 `<game-dir>/config/randomchaos.json`, Gson-serialized, auto-written with
 defaults if missing or unreadable (parse failures fall back to defaults with an
 `ERROR` log — never crashes). All settings are tunable at runtime via
-`/randomchaos` slash commands (§9), which validate and persist immediately.
+`/randomchaos` slash commands (§11), which validate and persist immediately.
 
 ```json
 {
@@ -134,7 +181,7 @@ All three weights must not be simultaneously zero (reset to defaults + warn).
 Weights are normalized over the tiers available at each pick; a tier with no
 registered events is excluded.
 
-## 7. Client HUD
+## 9. Client HUD
 
 Top-right overlay (`ChaosHudOverlay`, registered via
 `HudElementRegistry.addLast`). Renders with `GuiGraphicsExtractor`. Hidden when
@@ -156,7 +203,7 @@ no level/player is loaded.
   `serverTick` plus elapsed client game time, so countdowns tick smoothly
   between the once-per-second broadcasts.
 
-## 8. Event extension model
+## 10. Event extension model
 
 Adding an event:
 
@@ -168,12 +215,15 @@ Adding an event:
        int defaultDurationTicks();      // 0 = instant
        default boolean instant() { return defaultDurationTicks() <= 0; }
        default ChaosTier tier() { return ChaosTier.MEDIUM; }  // MINOR / MEDIUM / MAJOR
+       default String displayName() { ... }  // humanizes id path (e.g. "spawn zombie")
        default void tick(ServerPlayer victim, long now) {}     // called each tick while active
        default void onEnd(ServerPlayer victim) {}              // called when the active effect expires
    }
    ```
    - `tier()` — determines the event's difficulty tier (affects picker weighting
      and MAJOR cooldown).
+   - `displayName()` — default method that humanizes the id path by replacing
+     underscores with spaces and capitalizing words. Override for custom names.
    - `tick()` — called every server tick while the event is the active timed
      effect. Used by events that need per-tick behavior (e.g. rainbow road).
    - `onEnd()` — called when the active effect expires or is cleared. Clean up
@@ -193,7 +243,7 @@ Adding an event:
 then selects an event uniformly within that tier. Per-event weights are not yet
 supported (tier-level weights are configurable in `randomchaos.json`).
 
-## 9. Commands
+## 11. Commands
 
 All `/randomchaos` subcommands require op level 2 (gamemasters). Set commands
 mutate the in-memory config, validate it, and persist to
@@ -211,7 +261,7 @@ mutate the in-memory config, validate it, and persist to
 Start and end are automatic (first join / dragon death) — there are no manual
 start/stop commands by design.
 
-## 10. Source layout
+## 12. Source layout
 
 ```
 src/main/java/org/tupi/randomchaos/
@@ -223,9 +273,11 @@ src/main/java/org/tupi/randomchaos/
 ├── events/    HungerDrainEvent, SpawnSpiderEvent, CobbleCageEvent,
 │              SpawnZombieEvent, MiningFatigueEvent, SpawnCreeperEvent,
 │              DizzinessEvent, RainbowRoadEvent, BlindnessEvent,
-│              TeleportToGroundEvent, ThunderStrikeEvent, CraterEvent
+│              TeleportToGroundEvent, ThunderStrikeEvent, CraterEvent,
+│              AdventureModeEvent, SlownessEvent, ClayFillEvent,
+│              PhoenixPathEvent, LeavesOnBreakEvent
 ├── scheduler/ ChaosScheduler.java     // tick loop, chooseTier, deferred drain
-├── lifecycle/ ChaosLifecycle.java     // first-join start, dragon-death end
+├── lifecycle/ ChaosLifecycle.java     // first-join start, dragon-death end, disconnect handling
 ├── net/       ChaosStatePayload.java, ChaosNetworking.java
 └── command/   RandomChaosCommand.java  // /randomchaos show|reload|interval|cap|cooldown|weight
 
@@ -235,7 +287,7 @@ src/client/java/org/tupi/randomchaos/client/
 └── hud/  ChaosHudOverlay.java
 ```
 
-## 11. Verification
+## 13. Verification
 
 - `./gradlew build` — compiles main + client source sets (this is the
   typecheck; no separate linter).
@@ -254,7 +306,7 @@ src/client/java/org/tupi/randomchaos/client/
 > for these two pure-function checks. The startup self-test covers them
 > instead. Structure-based `@GameTest`s can be added later if desired.
 
-## 12. Known limitations / future work
+## 14. Known limitations / future work
 
 - **Instant events** don't linger on the HUD — the "Now" line only shows timed
   effects. Add a short display window if instant events should flash.

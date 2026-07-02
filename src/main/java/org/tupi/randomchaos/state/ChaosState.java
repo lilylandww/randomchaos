@@ -44,7 +44,7 @@ public class ChaosState extends SavedData {
 		state.challengeEndTick = challengeEndTick;
 		state.nextEventTick = nextEventTick;
 		state.currentEventId = currentEventId;
-		state.currentVictimUuid = currentVictimUuid;
+		state.currentVictimUuid = currentVictimUuid.orElse(null);
 		state.currentEffectExpiryTick = currentEffectExpiryTick;
 		state.currentEffectStartTick = currentEffectStartTick;
 		state.lastVictimUuid = lastVictimUuid.orElse(null);
