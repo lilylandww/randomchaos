@@ -2,7 +2,10 @@ package org.tupi.randomchaos;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.resources.Identifier;
+
+import org.tupi.randomchaos.net.ChaosStatePayload;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +43,7 @@ public class RandomChaosMod implements ModInitializer {
 
 		ChaosConfig.get();
 
+		PayloadTypeRegistry.clientboundPlay().register(ChaosStatePayload.TYPE, ChaosStatePayload.STREAM_CODEC);
 		ChaosEventRegistry registry = ChaosEventRegistry.INSTANCE;
 		registry.register(new HungerDrainEvent());
 		registry.register(new SpawnSpiderEvent());

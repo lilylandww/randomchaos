@@ -19,7 +19,7 @@ public record ChaosStatePayload(
 ) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<ChaosStatePayload> TYPE =
-        CustomPacketPayload.createType(org.tupi.randomchaos.RandomChaosMod.id("state").toString());
+        new CustomPacketPayload.Type<>(org.tupi.randomchaos.RandomChaosMod.id("state"));
 
     private static final StreamCodec<RegistryFriendlyByteBuf, UUID> NULLABLE_UUID =
         StreamCodec.of(
