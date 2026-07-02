@@ -67,9 +67,24 @@ public final class ChaosScheduler {
 	}
 
 	private static void endCurrentEvent(List<ServerPlayer> players, ChaosState state) {
+		ServerPlayer victim = null;
 		if (state.currentEventId != null && !state.currentEventId.isBlank() && state.currentVictimUuid != null) {
+			victim = findByUuid(players, state.currentVictimUuid);
+		}
+		endCurrentEventWith(victim, state);
+	}
+
+	/**
+	 * End the current event immediately for a known victim (e.g. at disconnect).
+	 * Calls {@code onEnd} with the given player, then clears the active-event fields.
+	 */
+	public static void endCurrentEventFor(ServerPlayer victim, ChaosState state) {
+		endCurrentEventWith(victim, state);
+	}
+
+	private static void endCurrentEventWith(ServerPlayer victim, ChaosState state) {
+		if (state.currentEventId != null && !state.currentEventId.isBlank()) {
 			ChaosEvent event = lookupEvent(state.currentEventId);
-			ServerPlayer victim = findByUuid(players, state.currentVictimUuid);
 			if (event != null && victim != null) {
 				try {
 					event.onEnd(victim);

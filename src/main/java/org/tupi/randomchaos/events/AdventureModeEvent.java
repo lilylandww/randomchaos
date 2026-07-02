@@ -1,19 +1,16 @@
 package org.tupi.randomchaos.events;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 
 import org.tupi.randomchaos.RandomChaosMod;
 import org.tupi.randomchaos.event.ChaosEvent;
 import org.tupi.randomchaos.event.ChaosTier;
+import org.tupi.randomchaos.state.ChaosState;
 
 public class AdventureModeEvent implements ChaosEvent {
-    private final Map<UUID, GameType> previousGameModes = new HashMap<>();
 
     @Override
     public Identifier id() {
@@ -32,21 +29,23 @@ public class AdventureModeEvent implements ChaosEvent {
 
     @Override
     public void apply(ServerPlayer victim) {
-        previousGameModes.put(victim.getUUID(), victim.gameMode.getGameModeForPlayer());
+        ChaosState state = ChaosState.get(victim.level().getServer());
+        state.pendingGameModeRestores.put(victim.getUUID(), victim.gameMode.getGameModeForPlayer());
+        state.setDirty();
         victim.gameMode.changeGameModeForPlayer(GameType.ADVENTURE);
         RandomChaosMod.LOGGER.info("Switched {} to adventure mode", victim.getName().getString());
     }
 
     @Override
     public void onEnd(ServerPlayer victim) {
-        restoreIfSaved(victim);
-    }
-
-    public void restoreIfSaved(ServerPlayer player) {
-        GameType previous = previousGameModes.remove(player.getUUID());
+        MinecraftServer server = victim.level().getServer();
+        if (server == null) return;
+        ChaosState state = ChaosState.get(server);
+        GameType previous = state.pendingGameModeRestores.remove(victim.getUUID());
         if (previous != null) {
-            player.gameMode.changeGameModeForPlayer(previous);
-            RandomChaosMod.LOGGER.info("Restored game mode {} for {}", previous, player.getName().getString());
+            victim.gameMode.changeGameModeForPlayer(previous);
+            state.setDirty();
+            RandomChaosMod.LOGGER.info("Restored game mode {} for {}", previous, victim.getName().getString());
         }
     }
 }

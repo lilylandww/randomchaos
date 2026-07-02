@@ -6,12 +6,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.level.GameType;
 
 import org.tupi.randomchaos.RandomChaosMod;
 import org.tupi.randomchaos.config.ChaosConfig;
-import org.tupi.randomchaos.event.ChaosEvent;
-import org.tupi.randomchaos.event.ChaosEventRegistry;
-import org.tupi.randomchaos.events.AdventureModeEvent;
 import org.tupi.randomchaos.scheduler.ChaosScheduler;
 import org.tupi.randomchaos.state.ChaosState;
 
@@ -23,12 +21,36 @@ public final class ChaosLifecycle {
 			onPlayerJoin(server);
 			ServerPlayer player = handler.player;
 			if (player != null) {
-				ChaosScheduler.sendTo(player, ChaosState.get(server), ChaosScheduler.gameTime(server));
+				ChaosState state = ChaosState.get(server);
+				ChaosScheduler.sendTo(player, state, ChaosScheduler.gameTime(server));
 
-				ChaosEvent advLookup = ChaosEventRegistry.INSTANCE.get(RandomChaosMod.id("adventure_mode"));
-				if (advLookup instanceof AdventureModeEvent adv) {
-					adv.restoreIfSaved(player);
+				// Restore game mode if this player was put in adventure mode by a chaos event
+				// and never restored (e.g., event expired while they were offline, or server restart).
+				long now = ChaosScheduler.gameTime(server);
+				GameType pending = state.pendingGameModeRestores.get(player.getUUID());
+				if (pending != null) {
+					boolean effectStillActive = state.currentEffectExpiryTick > now
+						&& player.getUUID().equals(state.currentVictimUuid);
+					if (!effectStillActive) {
+						player.gameMode.changeGameModeForPlayer(pending);
+						state.pendingGameModeRestores.remove(player.getUUID());
+						state.setDirty();
+						RandomChaosMod.LOGGER.info("Restored pending game mode {} for {}", pending, player.getName().getString());
+					}
 				}
+			}
+		});
+
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+			ServerPlayer player = handler.player;
+			if (player == null) return;
+			ChaosState state = ChaosState.get(server);
+			if (player.getUUID().equals(state.currentVictimUuid)
+					&& state.currentEventId != null && !state.currentEventId.isBlank()) {
+				ChaosScheduler.endCurrentEventFor(player, state);
+				state.setDirty();
+				ChaosScheduler.broadcast(server, state, ChaosScheduler.gameTime(server));
+				RandomChaosMod.LOGGER.info("Ended chaos event for disconnected player {}", player.getName().getString());
 			}
 		});
 
