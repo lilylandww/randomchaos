@@ -12,7 +12,7 @@ import org.tupi.randomchaos.event.ChaosEvent;
 import org.tupi.randomchaos.event.ChaosTier;
 
 public class CraterEvent implements ChaosEvent {
-    private static final double RADIUS = 3.0;
+    private static final double RADIUS = 1.5;
     private static final int MIN_Y_FLOOR_MARGIN = 4;
 
     @Override

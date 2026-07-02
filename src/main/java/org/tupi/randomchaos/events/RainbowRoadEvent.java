@@ -69,7 +69,7 @@ public class RainbowRoadEvent implements ChaosEvent {
 
         ServerLevel level = victim.level();
         BlockState existing = level.getBlockState(target);
-        if (!existing.isAir() && existing.getBlock() != Blocks.BEDROCK && level.getBlockEntity(target) == null) {
+        if (existing.isAir()) {
             Block wool = WOOL[s.colorIdx % WOOL.length];
             level.setBlock(target, wool.defaultBlockState(), 3);
             s.colorIdx++;
