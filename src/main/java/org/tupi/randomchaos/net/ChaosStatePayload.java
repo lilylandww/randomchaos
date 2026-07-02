@@ -15,7 +15,9 @@ public record ChaosStatePayload(
     long nextEventTick,
     String currentEventId,
     UUID currentVictimUuid,
-    long currentEffectExpiryTick
+    long currentEffectExpiryTick,
+    long currentEffectStartTick,
+    long intervalTicks
 ) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<ChaosStatePayload> TYPE =
@@ -41,6 +43,8 @@ public record ChaosStatePayload(
             ByteBufCodecs.STRING_UTF8, ChaosStatePayload::currentEventId,
             NULLABLE_UUID,             ChaosStatePayload::currentVictimUuid,
             ByteBufCodecs.LONG,        ChaosStatePayload::currentEffectExpiryTick,
+            ByteBufCodecs.LONG,        ChaosStatePayload::currentEffectStartTick,
+            ByteBufCodecs.LONG,        ChaosStatePayload::intervalTicks,
             ChaosStatePayload::new
         );
 

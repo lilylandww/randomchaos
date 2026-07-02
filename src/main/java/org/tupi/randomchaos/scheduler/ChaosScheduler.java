@@ -96,6 +96,7 @@ public final class ChaosScheduler {
 		state.currentEventId = "";
 		state.currentVictimUuid = null;
 		state.currentEffectExpiryTick = 0;
+		state.currentEffectStartTick = 0;
 	}
 
 	private static void tickCurrentEvent(List<ServerPlayer> players, ChaosState state, long now) {
@@ -176,10 +177,12 @@ public final class ChaosScheduler {
 				state.currentEventId = event.id().toString();
 				state.currentVictimUuid = victim.getUUID();
 				state.currentEffectExpiryTick = now + duration;
+				state.currentEffectStartTick = now;
 			} else {
 				state.currentEventId = "";
 				state.currentVictimUuid = null;
 				state.currentEffectExpiryTick = 0;
+				state.currentEffectStartTick = 0;
 			}
 
 			Component chatMsg = Component.literal("[Chaos] " + victim.getName().getString() + " - " + event.displayName())
@@ -360,7 +363,9 @@ public final class ChaosScheduler {
 			state.nextEventTick,
 			state.currentEventId == null ? "" : state.currentEventId,
 			state.currentVictimUuid,
-			state.currentEffectExpiryTick
+			state.currentEffectExpiryTick,
+			state.currentEffectStartTick,
+			ChaosConfig.get().intervalTicks()
 		);
 	}
 }

@@ -13,10 +13,12 @@ public final class ClientChaosState {
         String currentEventId,
         UUID currentVictimUuid,
         long currentEffectExpiryTick,
+        long currentEffectStartTick,
+        long intervalTicks,
         long clientGameTimeAtReceive
     ) {}
 
-    private static final Snapshot EMPTY = new Snapshot(0, 0, 0, 0, "", null, 0, 0);
+    private static final Snapshot EMPTY = new Snapshot(0, 0, 0, 0, "", null, 0, 0, 0, 0);
 
     private volatile Snapshot snapshot = EMPTY;
 

@@ -21,6 +21,8 @@ public final class ClientNetworking {
                 payload.currentEventId(),
                 payload.currentVictimUuid(),
                 payload.currentEffectExpiryTick(),
+                payload.currentEffectStartTick(),
+                payload.intervalTicks(),
                 gameTime
             ));
         });

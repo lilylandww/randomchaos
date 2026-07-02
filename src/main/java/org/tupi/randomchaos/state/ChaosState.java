@@ -28,6 +28,7 @@ public class ChaosState extends SavedData {
 		Codec.STRING.fieldOf("current_event_id").forGetter(s -> s.currentEventId),
 		UUIDUtil.CODEC.optionalFieldOf("current_victim_uuid").forGetter(s -> Optional.ofNullable(s.currentVictimUuid)),
 		Codec.LONG.fieldOf("current_effect_expiry_tick").forGetter(s -> s.currentEffectExpiryTick),
+		Codec.LONG.optionalFieldOf("current_effect_start_tick", 0L).forGetter(s -> s.currentEffectStartTick),
 		UUIDUtil.CODEC.optionalFieldOf("last_victim_uuid").forGetter(s -> Optional.ofNullable(s.lastVictimUuid)),
 		Codec.INT.fieldOf("consecutive_picks").forGetter(s -> s.consecutivePicks),
 		Codec.INT.optionalFieldOf("picks_since_last_major", 0).forGetter(s -> s.picksSinceLastMajor),
@@ -36,7 +37,7 @@ public class ChaosState extends SavedData {
 			.optionalFieldOf("pending_game_mode_restores", Map.of())
 			.forGetter(s -> s.pendingGameModeRestores)
 	).apply(instance, (challengeStartTick, challengeEndTick, nextEventTick, currentEventId,
-			currentVictimUuid, currentEffectExpiryTick, lastVictimUuid, consecutivePicks,
+			currentVictimUuid, currentEffectExpiryTick, currentEffectStartTick, lastVictimUuid, consecutivePicks,
 			picksSinceLastMajor, deferredActions, pendingGameModeRestores) -> {
 		ChaosState state = new ChaosState();
 		state.challengeStartTick = challengeStartTick;
@@ -45,6 +46,7 @@ public class ChaosState extends SavedData {
 		state.currentEventId = currentEventId;
 		state.currentVictimUuid = currentVictimUuid.orElse(null);
 		state.currentEffectExpiryTick = currentEffectExpiryTick;
+		state.currentEffectStartTick = currentEffectStartTick;
 		state.lastVictimUuid = lastVictimUuid.orElse(null);
 		state.consecutivePicks = consecutivePicks;
 		state.picksSinceLastMajor = picksSinceLastMajor;
@@ -66,6 +68,7 @@ public class ChaosState extends SavedData {
 	public String currentEventId = "";
 	public UUID currentVictimUuid;
 	public long currentEffectExpiryTick;
+	public long currentEffectStartTick;
 	public UUID lastVictimUuid;
 	public int consecutivePicks;
 	public int picksSinceLastMajor;
