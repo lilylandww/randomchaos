@@ -2,11 +2,17 @@ package org.tupi.randomchaos;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 
+import org.tupi.randomchaos.event.ChaosEvent;
+import org.tupi.randomchaos.event.ChaosEventRegistry;
 import org.tupi.randomchaos.event.ChaosTier;
 import org.tupi.randomchaos.scheduler.ChaosScheduler;
 
@@ -31,6 +37,10 @@ public final class ChaosSelfTest {
 		t.testChooseTierFallbackEmptyPool();
 		t.testChooseTierAllEmptyThrows();
 		t.testChooseTierOnlyMajorOnCooldownRelaxes();
+		t.testCooldownExcludesRecent();
+		t.testCooldownRelaxesWhenAllBlocked();
+		t.testCooldownEmptyRecentReturnsFull();
+		t.testCooldownWindowRespected();
 		} catch (Throwable e) {
 			RandomChaosMod.LOGGER.error("Random Chaos self-test threw unexpectedly", e);
 			throw new AssertionError("self-test threw: " + e.getMessage(), e);
@@ -191,6 +201,74 @@ public final class ChaosSelfTest {
 	private void testChooseTierOnlyMajorOnCooldownRelaxes() {
 		ChaosTier t = ChaosScheduler.chooseTier(new FixedIndexRng(0), 0, 6, 50, 35, 40, false, false, true);
 		check("tier: only-MAJOR-on-cooldown relaxes to MAJOR", t == ChaosTier.MAJOR, "got " + t);
+	}
+
+	private void testCooldownExcludesRecent() {
+		List<ChaosEvent> pool = List.of(fakeEvent("a"), fakeEvent("b"), fakeEvent("c"));
+		Set<Identifier> recent = new HashSet<>();
+		recent.add(RandomChaosMod.id("a"));
+		List<ChaosEvent> filtered = ChaosEventRegistry.applyCooldown(pool, recent);
+		boolean aExcluded = filtered.stream().noneMatch(e -> e.id().equals(RandomChaosMod.id("a")));
+		boolean bcPresent = filtered.stream().anyMatch(e -> e.id().equals(RandomChaosMod.id("b")))
+			&& filtered.stream().anyMatch(e -> e.id().equals(RandomChaosMod.id("c")));
+		check("cooldown: recent pick excluded", aExcluded, "a was in filtered set");
+		check("cooldown: non-recent picks present", bcPresent, "b or c missing");
+	}
+
+	private void testCooldownRelaxesWhenAllBlocked() {
+		List<ChaosEvent> pool = List.of(fakeEvent("x"), fakeEvent("y"));
+		Set<Identifier> recent = new HashSet<>();
+		recent.add(RandomChaosMod.id("x"));
+		recent.add(RandomChaosMod.id("y"));
+		List<ChaosEvent> filtered = ChaosEventRegistry.applyCooldown(pool, recent);
+		check("cooldown: relaxes to full pool when all blocked", filtered.size() == pool.size(), "size=" + filtered.size());
+	}
+
+	private void testCooldownEmptyRecentReturnsFull() {
+		List<ChaosEvent> pool = List.of(fakeEvent("a"), fakeEvent("b"));
+		Set<Identifier> recent = new HashSet<>();
+		List<ChaosEvent> filtered = ChaosEventRegistry.applyCooldown(pool, recent);
+		check("cooldown: empty recent returns full pool", filtered.size() == pool.size(), "size=" + filtered.size());
+	}
+
+	private void testCooldownWindowRespected() {
+		List<ChaosEvent> pool = new ArrayList<>();
+		for (int i = 0; i < 5; i++) {
+			pool.add(fakeEvent("ev" + i));
+		}
+		RandomSource rng = RandomSource.create();
+		int cooldown = 3;
+		int violations = 0;
+		int n = 5000;
+		List<String> history = new ArrayList<>();
+		for (int i = 0; i < n; i++) {
+			List<ChaosEvent> available;
+			int start = Math.max(0, history.size() - cooldown);
+			Set<Identifier> recent = new HashSet<>();
+			for (int j = start; j < history.size(); j++) {
+				recent.add(RandomChaosMod.id(history.get(j)));
+			}
+			available = ChaosEventRegistry.applyCooldown(pool, recent);
+			ChaosEvent picked = available.get(rng.nextInt(available.size()));
+			history.add(picked.id().getPath());
+			int idx = history.size() - 1;
+			for (int back = 1; back <= cooldown && idx - back >= 0; back++) {
+				if (history.get(idx - back).equals(history.get(idx))) {
+					violations++;
+				}
+			}
+		}
+		check("cooldown: no repeat within window of " + cooldown, violations == 0, "violations=" + violations);
+	}
+
+	private static ChaosEvent fakeEvent(String idPath) {
+		Identifier eventId = RandomChaosMod.id(idPath);
+		return new ChaosEvent() {
+			@Override public Identifier id() { return eventId; }
+			@Override public void apply(ServerPlayer victim) {}
+			@Override public int defaultDurationTicks() { return 0; }
+			@Override public ChaosTier tier() { return ChaosTier.MINOR; }
+		};
 	}
 
 	private static final class FixedIndexRng implements RandomSource {

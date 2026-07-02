@@ -24,6 +24,8 @@ public final class ChaosConfig {
     public static final int DEFAULT_MINOR_WEIGHT = 50;
     public static final int DEFAULT_MEDIUM_WEIGHT = 35;
     public static final int DEFAULT_MAJOR_WEIGHT = 40;
+    public static final int DEFAULT_MINOR_COOLDOWN = 3;
+    public static final int DEFAULT_MEDIUM_COOLDOWN = 4;
 
     public int intervalSeconds = DEFAULT_INTERVAL_SECONDS;
     public double effectCapRatio = DEFAULT_EFFECT_CAP_RATIO;
@@ -31,6 +33,8 @@ public final class ChaosConfig {
     public int minorWeight = DEFAULT_MINOR_WEIGHT;
     public int mediumWeight = DEFAULT_MEDIUM_WEIGHT;
     public int majorWeight = DEFAULT_MAJOR_WEIGHT;
+    public int minorCooldown = DEFAULT_MINOR_COOLDOWN;
+    public int mediumCooldown = DEFAULT_MEDIUM_COOLDOWN;
 
     private static volatile ChaosConfig instance;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -106,6 +110,14 @@ public final class ChaosConfig {
             minorWeight = DEFAULT_MINOR_WEIGHT;
             mediumWeight = DEFAULT_MEDIUM_WEIGHT;
             majorWeight = DEFAULT_MAJOR_WEIGHT;
+        }
+        if (minorCooldown < 0) {
+            RandomChaosMod.LOGGER.warn("randomchaos.json: minorCooldown must be >= 0, clamping to {}", DEFAULT_MINOR_COOLDOWN);
+            minorCooldown = DEFAULT_MINOR_COOLDOWN;
+        }
+        if (mediumCooldown < 0) {
+            RandomChaosMod.LOGGER.warn("randomchaos.json: mediumCooldown must be >= 0, clamping to {}", DEFAULT_MEDIUM_COOLDOWN);
+            mediumCooldown = DEFAULT_MEDIUM_COOLDOWN;
         }
     }
 
