@@ -44,6 +44,7 @@ public class BeeSwarmEvent implements ChaosEvent {
 
             Bee bee = EntityType.BEE.create(level, EntitySpawnReason.EVENT);
             if (bee == null) {
+                RandomChaosMod.LOGGER.warn("Bee swarm: failed to create bee #{}", i);
                 continue;
             }
             bee.setPos(x, victim.getY(), z);

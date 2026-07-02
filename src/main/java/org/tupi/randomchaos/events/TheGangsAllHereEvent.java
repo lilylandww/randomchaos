@@ -7,10 +7,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.monster.Creeper;
-import net.minecraft.world.entity.monster.spider.Spider;
-import net.minecraft.world.entity.monster.skeleton.Skeleton;
-import net.minecraft.world.entity.monster.zombie.Zombie;
 
 import org.tupi.randomchaos.RandomChaosMod;
 import org.tupi.randomchaos.event.ChaosEvent;
@@ -50,6 +46,7 @@ public class TheGangsAllHereEvent implements ChaosEvent {
             }
             Entity entity = types[i].create(level, EntitySpawnReason.EVENT);
             if (entity == null) {
+                RandomChaosMod.LOGGER.warn("The gang's all here: failed to create entity #{}", i);
                 continue;
             }
             entity.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
