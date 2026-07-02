@@ -18,6 +18,24 @@ public interface ChaosEvent {
         return ChaosTier.MEDIUM;
     }
 
+    default String displayName() {
+        String path = id().getPath();
+        StringBuilder sb = new StringBuilder();
+        boolean capitalize = true;
+        for (char c : path.toCharArray()) {
+            if (c == '_') {
+                sb.append(' ');
+                capitalize = true;
+            } else if (capitalize) {
+                sb.append(Character.toUpperCase(c));
+                capitalize = false;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     default void tick(ServerPlayer victim, long now) {
     }
 

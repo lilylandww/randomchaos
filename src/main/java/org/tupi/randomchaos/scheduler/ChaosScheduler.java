@@ -5,6 +5,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -161,6 +162,10 @@ public final class ChaosScheduler {
 				state.currentVictimUuid = null;
 				state.currentEffectExpiryTick = 0;
 			}
+
+			Component chatMsg = Component.literal("[Chaos] " + victim.getName().getString() + " - " + event.displayName())
+				.withColor(0xFFAA00);
+			server.getPlayerList().broadcastSystemMessage(chatMsg, false);
 		}
 
 		state.picksSinceLastMajor = (tier == ChaosTier.MAJOR) ? 0 : state.picksSinceLastMajor + 1;
