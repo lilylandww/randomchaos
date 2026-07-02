@@ -30,12 +30,16 @@ public final class ChaosScheduler {
 
 	private ChaosScheduler() {}
 
+	public static long gameTime(MinecraftServer server) {
+		return server.overworld().getGameTime();
+	}
+
 	public static void tick(MinecraftServer server) {
 		ChaosState state = ChaosState.get(server);
 		if (state.challengeStartTick == 0) return;
 		if (state.challengeEndTick != 0) return;
 
-		long now = server.getTickCount();
+		long now = gameTime(server);
 		boolean changed = false;
 		List<ServerPlayer> players = server.getPlayerList().getPlayers();
 

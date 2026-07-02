@@ -24,10 +24,10 @@ public final class ChaosLifecycle {
 			onPlayerJoin(server);
 			ServerPlayer player = handler.player;
 			if (player != null) {
-				ChaosScheduler.sendTo(player, ChaosState.get(server), server.getTickCount());
+				ChaosScheduler.sendTo(player, ChaosState.get(server), ChaosScheduler.gameTime(server));
 
 				ChaosState state = ChaosState.get(server);
-				long now = server.getTickCount();
+				long now = ChaosScheduler.gameTime(server);
 				if (state.currentEffectExpiryTick > now) {
 					Identifier eventId = Identifier.tryParse(state.currentEventId);
 					if (eventId != null) {
@@ -51,7 +51,7 @@ public final class ChaosLifecycle {
 		ChaosState state = ChaosState.get(server);
 		if (state.challengeStartTick != 0 || state.challengeEndTick != 0) return;
 
-		long now = server.getTickCount();
+		long now = ChaosScheduler.gameTime(server);
 		state.challengeStartTick = now;
 		state.nextEventTick = now + ChaosConfig.get().intervalTicks();
 		state.setDirty();
@@ -66,7 +66,7 @@ public final class ChaosLifecycle {
 		ChaosState state = ChaosState.get(server);
 		if (state.challengeEndTick != 0) return;
 
-		long now = server.getTickCount();
+		long now = ChaosScheduler.gameTime(server);
 		state.challengeEndTick = now;
 		state.currentEventId = "";
 		state.currentVictimUuid = null;

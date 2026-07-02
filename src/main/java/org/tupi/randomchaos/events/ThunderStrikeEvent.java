@@ -36,7 +36,7 @@ public class ThunderStrikeEvent implements ChaosEvent {
             return;
         }
         ChaosState state = ChaosState.get(server);
-        long now = server.getTickCount();
+        long now = ChaosScheduler.gameTime(server);
 
         ChaosScheduler.spawnLightningNear(victim);
         state.enqueueDeferred(new DeferredAction(now + STRIKE_INTERVAL_TICKS, victim.getUUID(), DeferredAction.KIND_LIGHTNING));
