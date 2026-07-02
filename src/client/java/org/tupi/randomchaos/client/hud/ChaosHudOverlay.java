@@ -59,18 +59,18 @@ public final class ChaosHudOverlay {
         int y = 4;
 
         if (s.challengeEndTick() > 0) {
-            g.text(mc.font, line1, x, y, 0x55FF55, true);
+            g.text(mc.font, line1, x, y, 0xFF55FF55, true);
         } else if (s.challengeStartTick() == 0) {
-            g.text(mc.font, line1, x, y, 0x808080, true);
+            g.text(mc.font, line1, x, y, 0xFF808080, true);
         } else {
-            g.text(mc.font, line1, x, y, 0xFFFFFF, true);
+            g.text(mc.font, line1, x, y, 0xFFFFFFFF, true);
             y += 11;
             if (line2 != null) {
-                g.text(mc.font, line2, x, y, 0xFFAA00, true);
+                g.text(mc.font, line2, x, y, 0xFFFFAA00, true);
                 y += 11;
             }
             if (line3 != null) {
-                g.text(mc.font, line3, x, y, 0x55FFFF, true);
+                g.text(mc.font, line3, x, y, 0xFF55FFFF, true);
             }
         }
     }
