@@ -47,7 +47,7 @@ public class PhoenixPathEvent implements ChaosEvent {
 
         if (lastPos != null && !currentPos.equals(lastPos)) {
             ServerLevel level = victim.level();
-            if (level.getBlockState(lastPos).isAir() && level.getBlockState(lastPos.below()).isSolidRender()) {
+            if (level.getBlockState(lastPos).isAir() && level.getBlockState(lastPos.below()).isFaceSturdy(level, lastPos.below(), net.minecraft.core.Direction.UP)) {
                 level.setBlock(lastPos, Blocks.FIRE.defaultBlockState(), 3);
             }
         }

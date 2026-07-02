@@ -30,7 +30,7 @@ public class ClayFillEvent implements ChaosEvent {
     public void apply(ServerPlayer victim) {
         Inventory inventory = victim.getInventory();
         int filled = 0;
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
+        for (int i = 0; i < 36; i++) {
             if (inventory.getItem(i).isEmpty()) {
                 inventory.setItem(i, new ItemStack(Blocks.CLAY));
                 filled++;

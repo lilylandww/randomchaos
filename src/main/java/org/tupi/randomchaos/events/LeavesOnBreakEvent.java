@@ -25,7 +25,7 @@ public class LeavesOnBreakEvent implements ChaosEvent {
             if (!activePlayers.contains(serverPlayer.getUUID())) return;
             if (state.is(Blocks.OAK_LEAVES)) return;
             if (!(level instanceof ServerLevel serverLevel)) return;
-            serverLevel.setBlock(pos, Blocks.OAK_LEAVES.defaultBlockState(), 3);
+            serverLevel.setBlock(pos, Blocks.OAK_LEAVES.defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true), 3);
         });
     }
 

@@ -2,7 +2,6 @@ package org.tupi.randomchaos.lifecycle;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -26,16 +25,9 @@ public final class ChaosLifecycle {
 			if (player != null) {
 				ChaosScheduler.sendTo(player, ChaosState.get(server), ChaosScheduler.gameTime(server));
 
-				ChaosState state = ChaosState.get(server);
-				long now = ChaosScheduler.gameTime(server);
-				if (state.currentEffectExpiryTick > now) {
-					Identifier eventId = Identifier.tryParse(state.currentEventId);
-					if (eventId != null) {
-						ChaosEvent event = ChaosEventRegistry.INSTANCE.get(eventId);
-						if (event instanceof AdventureModeEvent adv) {
-							adv.restoreIfSaved(player);
-						}
-					}
+				ChaosEvent advLookup = ChaosEventRegistry.INSTANCE.get(RandomChaosMod.id("adventure_mode"));
+				if (advLookup instanceof AdventureModeEvent adv) {
+					adv.restoreIfSaved(player);
 				}
 			}
 		});
