@@ -49,14 +49,22 @@ When `now >= nextEventTick` and the challenge is active:
 2. If the registry is empty → same (push forward, wait).
 3. **Pick a victim** via `ChaosScheduler.pickVictimUuid(...)` — uniform random
    subject to the **no-5-in-a-row** rule (§5).
-4. **Pick an event** uniformly at random from `ChaosEventRegistry`.
-5. Apply it (`event.apply(victim)`); failures are caught and logged so a
+4. **Pick a tier** via `ChaosScheduler.chooseTier(...)` — weighted random among
+   `MINOR`/`MEDIUM`/`MAJOR` with a MAJOR cooldown (`majorCooldownPicks`,
+   default 6 — MAJOR can fire at most once every 6 picks). Weights are
+   configurable; normalize over available tiers. If the chosen tier's pool is
+   empty, fall back to the next non-empty tier (MINOR → MEDIUM → MAJOR). If
+   all pools are empty → push forward and wait.
+5. **Pick an event** uniformly at random within the chosen tier from
+   `ChaosEventRegistry`.
+6. Apply it (`event.apply(victim)`); failures are caught and logged so a
    buggy event never crashes the tick loop.
-6. Write the result into state:
+7. Write the result into state:
    - Timed event → `currentEventId`, `currentVictimUuid`,
      `currentEffectExpiryTick = now + clamp(...)`.
    - Instant event → clear all three.
-7. Update the consecutive-pick counter (§5) and set `nextEventTick`.
+8. Update the consecutive-pick counter (§5), the MAJOR cooldown counter, and
+   set `nextEventTick`.
 
 ## 4. State model & persistence
 
@@ -99,12 +107,17 @@ observed run ≤ 4, except the single-survivor case).
 
 `<game-dir>/config/randomchaos.json`, Gson-serialized, auto-written with
 defaults if missing or unreadable (parse failures fall back to defaults with an
-`ERROR` log — never crashes).
+`ERROR` log — never crashes). All settings are tunable at runtime via
+`/randomchaos` slash commands (§9), which validate and persist immediately.
 
 ```json
 {
   "intervalSeconds": 120,
-  "effectCapRatio": 0.7
+  "effectCapRatio": 0.7,
+  "majorCooldownPicks": 6,
+  "minorWeight": 50,
+  "mediumWeight": 35,
+  "majorWeight": 40
 }
 ```
 
@@ -112,10 +125,14 @@ defaults if missing or unreadable (parse failures fall back to defaults with an
 |---|---|---|---|
 | `intervalSeconds` | `120` | `> 0` (else clamped to 120 + warn) | Seconds between events. |
 | `effectCapRatio` | `0.7` | `(0.0, 1.0]` (else clamped to 0.7 + warn) | Max fraction of the interval an effect may last. |
+| `majorCooldownPicks` | `6` | `≥ 1` (else clamped to 6 + warn) | Min picks between MAJOR events (hard ceiling: 1 MAJOR per N picks). |
+| `minorWeight` | `50` | `≥ 0` (else reset to 50 + warn) | Relative weight for MINOR tier. |
+| `mediumWeight` | `35` | `≥ 0` (else reset to 35 + warn) | Relative weight for MEDIUM tier. |
+| `majorWeight` | `40` | `≥ 0` (else reset to 40 + warn) | Relative weight for MAJOR tier. |
 
-Reload at runtime with `/randomchaos reload` (permission level 2 /
-`PermissionLevel.GAMEMASTERS`). Note: changes apply to **newly fired** events;
-already-running effect expiries are not retroactively recomputed.
+All three weights must not be simultaneously zero (reset to defaults + warn).
+Weights are normalized over the tiers available at each pick; a tier with no
+registered events is excluded.
 
 ## 7. Client HUD
 
@@ -150,8 +167,18 @@ Adding an event:
        void apply(ServerPlayer victim);
        int defaultDurationTicks();      // 0 = instant
        default boolean instant() { return defaultDurationTicks() <= 0; }
+       default ChaosTier tier() { return ChaosTier.MEDIUM; }  // MINOR / MEDIUM / MAJOR
+       default void tick(ServerPlayer victim, long now) {}     // called each tick while active
+       default void onEnd(ServerPlayer victim) {}              // called when the active effect expires
    }
    ```
+   - `tier()` — determines the event's difficulty tier (affects picker weighting
+     and MAJOR cooldown).
+   - `tick()` — called every server tick while the event is the active timed
+     effect. Used by events that need per-tick behavior (e.g. rainbow road).
+   - `onEnd()` — called when the active effect expires or is cleared. Clean up
+     any per-victim runtime state here. The scheduler wraps all three in
+     `try/catch(Throwable)` and null-guards the victim (skipped if offline).
 2. Register it in `RandomChaosMod.onInitialize()`:
    ```java
    ChaosEventRegistry.INSTANCE.register(new MyEvent());
@@ -160,14 +187,26 @@ Adding an event:
    automatically.
 
 `ChaosEventRegistry` throws `IllegalStateException` on duplicate ids and on
-`pickRandom` when empty. Selection is uniform; per-event weighting is not yet
-supported.
+`pickRandom` when empty. Each event declares a `ChaosTier` (`MINOR`, `MEDIUM`,
+`MAJOR`); the scheduler picks a tier via weighted random with a MAJOR cooldown
+(`majorCooldownPicks`, default 6 — MAJOR fires at most once every 6 events) and
+then selects an event uniformly within that tier. Per-event weights are not yet
+supported (tier-level weights are configurable in `randomchaos.json`).
 
 ## 9. Commands
 
-| Command | Permission | Effect |
-|---|---|---|
-| `/randomchaos reload` | level 2 | Re-reads `config/randomchaos.json`. |
+All `/randomchaos` subcommands require op level 2 (gamemasters). Set commands
+mutate the in-memory config, validate it, and persist to
+`config/randomchaos.json` immediately.
+
+| Command | Effect |
+|---|---|
+| `/randomchaos show` | Print current settings (interval, cap, cooldown, weights). |
+| `/randomchaos reload` | Re-read `config/randomchaos.json` from disk. |
+| `/randomchaos interval <seconds>` | Seconds between events (1–86400). |
+| `/randomchaos cap <ratio>` | Max fraction of interval a timed effect lasts (0.001–1.0). |
+| `/randomchaos cooldown <picks>` | Min picks between MAJOR events (≥1; default 6). |
+| `/randomchaos weight minor\|medium\|major <value>` | Tier weight (≥0). |
 
 Start and end are automatic (first join / dragon death) — there are no manual
 start/stop commands by design.
@@ -176,19 +215,22 @@ start/stop commands by design.
 
 ```
 src/main/java/org/tupi/randomchaos/
-├── RandomChaosMod.java        // entrypoint; wires everything
-├── ChaosSelfTest.java         // startup invariant checks
+├── RandomChaosMod.java            // entrypoint; wires everything
+├── ChaosSelfTest.java             // startup invariant checks (22 checks)
 ├── config/    ChaosConfig.java
-├── state/     ChaosState.java, ChaosStateManager.java
-├── event/     ChaosEvent.java, ChaosEventRegistry.java
-├── events/    SpawnZombieEvent.java   // concrete events live here
-├── scheduler/ ChaosScheduler.java     // tick loop + pure helpers
+├── state/     ChaosState.java, DeferredAction.java
+├── event/     ChaosEvent.java, ChaosEventRegistry.java, ChaosTier.java
+├── events/    HungerDrainEvent, SpawnSpiderEvent, CobbleCageEvent,
+│              SpawnZombieEvent, MiningFatigueEvent, SpawnCreeperEvent,
+│              DizzinessEvent, RainbowRoadEvent, BlindnessEvent,
+│              TeleportToGroundEvent, ThunderStrikeEvent, CraterEvent
+├── scheduler/ ChaosScheduler.java     // tick loop, chooseTier, deferred drain
 ├── lifecycle/ ChaosLifecycle.java     // first-join start, dragon-death end
 ├── net/       ChaosStatePayload.java, ChaosNetworking.java
-└── command/   RandomChaosCommand.java
+└── command/   RandomChaosCommand.java  // /randomchaos show|reload|interval|cap|cooldown|weight
 
 src/client/java/org/tupi/randomchaos/client/
-├── RandomChaosClient.java     // registers receiver + HUD
+├── RandomChaosClient.java         // registers receiver + HUD
 ├── net/  ClientChaosState.java, ClientNetworking.java
 └── hud/  ChaosHudOverlay.java
 ```
@@ -197,10 +239,12 @@ src/client/java/org/tupi/randomchaos/client/
 
 - `./gradlew build` — compiles main + client source sets (this is the
   typecheck; no separate linter).
-- `ChaosSelfTest.run()` at startup — 10 checks covering `clampDuration` (5
-  cases incl. the 70% cap) and `pickVictimUuid` (single-player, empty-list,
-  500-iteration no-5-in-a-row invariant, single-survivor exception). Throws
-  on failure, so a logic regression prevents the server from starting.
+- `ChaosSelfTest.run()` at startup — 22 checks covering `clampDuration` (5
+  cases incl. the 70% cap), `pickVictimUuid` (single-player, empty-list,
+  500-iteration no-5-in-a-row invariant, single-survivor exception), and
+  `chooseTier` (MAJOR cooldown blocking, eligibility, weight distribution,
+  empty-pool fallback, all-empty throw, cooldown relaxation). Throws on failure,
+  so a logic regression prevents the server from starting.
 - Manual: `./gradlew runServer`, join once, confirm the HUD counts down and a
   zombie spawns on the victim at the interval; kill the dragon and confirm the
   HUD shows `FINISHED`.
@@ -214,8 +258,9 @@ src/client/java/org/tupi/randomchaos/client/
 
 - **Instant events** don't linger on the HUD — the "Now" line only shows timed
   effects. Add a short display window if instant events should flash.
-- **No per-event weights** — selection is uniform. Add a `weight()` to
-  `ChaosEvent` and a weighted pick if severity tiers are needed.
+- **No per-event weights** — selection is tier-weighted (`MINOR`/`MEDIUM`/`MAJOR`
+  weights + MAJOR cooldown, configurable). Add a per-event `weight()` if finer
+  control is needed.
 - **Victim name lookup is client-local** — offline victims render as `?`.
 - **No manual pause/resume** — the timer runs whenever the server runs.
 - **Effect expiry is set at fire time** from the then-current config; later

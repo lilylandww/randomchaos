@@ -9,7 +9,20 @@ import org.slf4j.LoggerFactory;
 import org.tupi.randomchaos.command.RandomChaosCommand;
 import org.tupi.randomchaos.config.ChaosConfig;
 import org.tupi.randomchaos.event.ChaosEventRegistry;
+import org.tupi.randomchaos.events.BlindnessEvent;
+import org.tupi.randomchaos.events.CobbleCageEvent;
+import org.tupi.randomchaos.events.CraterEvent;
+import org.tupi.randomchaos.events.DizzinessEvent;
+import org.tupi.randomchaos.events.HungerDrainEvent;
+import org.tupi.randomchaos.events.MiningFatigueEvent;
+import org.tupi.randomchaos.events.RainbowRoadEvent;
+import org.tupi.randomchaos.events.SpawnCreeperEvent;
+import org.tupi.randomchaos.events.SpawnSpiderEvent;
 import org.tupi.randomchaos.events.SpawnZombieEvent;
+import org.tupi.randomchaos.events.TeleportToGroundEvent;
+import org.tupi.randomchaos.events.ThunderStrikeEvent;
+import org.tupi.randomchaos.events.AdventureModeEvent;
+import org.tupi.randomchaos.events.SlownessEvent;
 import org.tupi.randomchaos.lifecycle.ChaosLifecycle;
 import org.tupi.randomchaos.scheduler.ChaosScheduler;
 
@@ -27,7 +40,21 @@ public class RandomChaosMod implements ModInitializer {
 
 		ChaosConfig.get();
 
-		ChaosEventRegistry.INSTANCE.register(new SpawnZombieEvent());
+		ChaosEventRegistry registry = ChaosEventRegistry.INSTANCE;
+		registry.register(new HungerDrainEvent());
+		registry.register(new SpawnSpiderEvent());
+		registry.register(new CobbleCageEvent());
+		registry.register(new SpawnZombieEvent());
+		registry.register(new MiningFatigueEvent());
+		registry.register(new SpawnCreeperEvent());
+		registry.register(new DizzinessEvent());
+		registry.register(new RainbowRoadEvent());
+		registry.register(new BlindnessEvent());
+		registry.register(new TeleportToGroundEvent());
+		registry.register(new ThunderStrikeEvent());
+		registry.register(new CraterEvent());
+		registry.register(new AdventureModeEvent());
+		registry.register(new SlownessEvent());
 
 		ServerTickEvents.END_SERVER_TICK.register(ChaosScheduler::tick);
 		ChaosLifecycle.register();

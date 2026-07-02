@@ -1,20 +1,28 @@
 package org.tupi.randomchaos.scheduler;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LightningBolt;
 
 import org.tupi.randomchaos.RandomChaosMod;
 import org.tupi.randomchaos.config.ChaosConfig;
 import org.tupi.randomchaos.event.ChaosEvent;
 import org.tupi.randomchaos.event.ChaosEventRegistry;
+import org.tupi.randomchaos.event.ChaosTier;
 import org.tupi.randomchaos.net.ChaosNetworking;
 import org.tupi.randomchaos.net.ChaosStatePayload;
 import org.tupi.randomchaos.state.ChaosState;
+import org.tupi.randomchaos.state.DeferredAction;
 
 public final class ChaosScheduler {
 	private static final int PERIODIC_BROADCAST_TICKS = 20;
@@ -28,16 +36,23 @@ public final class ChaosScheduler {
 
 		long now = server.getTickCount();
 		boolean changed = false;
+		List<ServerPlayer> players = server.getPlayerList().getPlayers();
 
 		if (state.currentEffectExpiryTick != 0 && now >= state.currentEffectExpiryTick) {
-			state.currentEventId = "";
-			state.currentVictimUuid = null;
-			state.currentEffectExpiryTick = 0;
+			endCurrentEvent(players, state);
 			changed = true;
 		}
 
+		if (state.currentEffectExpiryTick != 0 && now < state.currentEffectExpiryTick) {
+			tickCurrentEvent(players, state, now);
+		}
+
 		if (now >= state.nextEventTick) {
-			fireEvent(server, state, now);
+			fireEvent(server, state, players, now);
+			changed = true;
+		}
+
+		if (drainDeferred(server, state, now)) {
 			changed = true;
 		}
 
@@ -46,8 +61,51 @@ public final class ChaosScheduler {
 		}
 	}
 
-	private static void fireEvent(MinecraftServer server, ChaosState state, long now) {
-		List<ServerPlayer> players = server.getPlayerList().getPlayers();
+	private static void endCurrentEvent(List<ServerPlayer> players, ChaosState state) {
+		if (state.currentEventId != null && !state.currentEventId.isBlank() && state.currentVictimUuid != null) {
+			ChaosEvent event = lookupEvent(state.currentEventId);
+			ServerPlayer victim = findByUuid(players, state.currentVictimUuid);
+			if (event != null && victim != null) {
+				try {
+					event.onEnd(victim);
+				} catch (Throwable t) {
+					RandomChaosMod.LOGGER.error("Chaos event {} threw in onEnd", event.id(), t);
+				}
+			}
+		}
+		state.currentEventId = "";
+		state.currentVictimUuid = null;
+		state.currentEffectExpiryTick = 0;
+	}
+
+	private static void tickCurrentEvent(List<ServerPlayer> players, ChaosState state, long now) {
+		if (state.currentEventId == null || state.currentEventId.isBlank() || state.currentVictimUuid == null) {
+			return;
+		}
+		ChaosEvent event = lookupEvent(state.currentEventId);
+		if (event == null) {
+			return;
+		}
+		ServerPlayer victim = findByUuid(players, state.currentVictimUuid);
+		if (victim == null) {
+			return;
+		}
+		try {
+			event.tick(victim, now);
+		} catch (Throwable t) {
+			RandomChaosMod.LOGGER.error("Chaos event {} threw in tick", event.id(), t);
+		}
+	}
+
+	private static ChaosEvent lookupEvent(String id) {
+		Identifier identifier = Identifier.tryParse(id);
+		if (identifier == null) {
+			return null;
+		}
+		return ChaosEventRegistry.INSTANCE.get(identifier);
+	}
+
+	private static void fireEvent(MinecraftServer server, ChaosState state, List<ServerPlayer> players, long now) {
 		ChaosConfig cfg = ChaosConfig.get();
 		int interval = cfg.intervalTicks();
 
@@ -57,7 +115,8 @@ public final class ChaosScheduler {
 			return;
 		}
 
-		if (ChaosEventRegistry.INSTANCE.size() == 0) {
+		ChaosEventRegistry registry = ChaosEventRegistry.INSTANCE;
+		if (registry.size() == 0) {
 			state.nextEventTick = now + interval;
 			state.setDirty();
 			return;
@@ -73,7 +132,16 @@ public final class ChaosScheduler {
 			return;
 		}
 
-		ChaosEvent event = ChaosEventRegistry.INSTANCE.pickRandom(rng);
+		ChaosTier tier = chooseTier(
+			rng,
+			state.picksSinceLastMajor,
+			cfg.majorCooldownPicks,
+			cfg.minorWeight, cfg.mediumWeight, cfg.majorWeight,
+			registry.hasTier(ChaosTier.MINOR),
+			registry.hasTier(ChaosTier.MEDIUM),
+			registry.hasTier(ChaosTier.MAJOR));
+		ChaosEvent event = registry.pickRandom(rng, tier);
+
 		boolean applied = true;
 		try {
 			event.apply(victim);
@@ -95,6 +163,8 @@ public final class ChaosScheduler {
 			}
 		}
 
+		state.picksSinceLastMajor = (tier == ChaosTier.MAJOR) ? 0 : state.picksSinceLastMajor + 1;
+
 		if (victim.getUUID().equals(state.lastVictimUuid)) {
 			state.consecutivePicks = state.consecutivePicks + 1;
 		} else {
@@ -104,6 +174,108 @@ public final class ChaosScheduler {
 
 		state.nextEventTick = now + interval;
 		state.setDirty();
+	}
+
+	public static ChaosTier chooseTier(
+			RandomSource rng,
+			int picksSinceLastMajor,
+			int majorCooldownPicks,
+			int minorWeight, int mediumWeight, int majorWeight,
+			boolean hasMinor, boolean hasMedium, boolean hasMajor) {
+		boolean majorOnCooldown = picksSinceLastMajor < majorCooldownPicks;
+		boolean majorAvailable = hasMajor && !majorOnCooldown;
+
+		List<ChaosTier> candidates = new ArrayList<>();
+		if (hasMinor) candidates.add(ChaosTier.MINOR);
+		if (hasMedium) candidates.add(ChaosTier.MEDIUM);
+		if (majorAvailable) candidates.add(ChaosTier.MAJOR);
+
+		if (candidates.isEmpty() && hasMajor) {
+			candidates.add(ChaosTier.MAJOR);
+		}
+		if (candidates.isEmpty()) {
+			throw new IllegalStateException("no chaos events registered for any tier");
+		}
+		if (candidates.size() == 1) {
+			return candidates.get(0);
+		}
+
+		int sum = 0;
+		for (ChaosTier t : candidates) {
+			sum += weightOf(t, minorWeight, mediumWeight, majorWeight);
+		}
+		if (sum <= 0) {
+			return candidates.get(rng.nextInt(candidates.size()));
+		}
+		int roll = rng.nextInt(sum);
+		int acc = 0;
+		for (ChaosTier t : candidates) {
+			acc += weightOf(t, minorWeight, mediumWeight, majorWeight);
+			if (roll < acc) {
+				return t;
+			}
+		}
+		return candidates.get(candidates.size() - 1);
+	}
+
+	private static int weightOf(ChaosTier tier, int minor, int medium, int major) {
+		return switch (tier) {
+			case MINOR -> minor;
+			case MEDIUM -> medium;
+			case MAJOR -> major;
+		};
+	}
+
+	private static boolean drainDeferred(MinecraftServer server, ChaosState state, long now) {
+		if (state.deferredActions.isEmpty()) {
+			return false;
+		}
+		boolean changed = false;
+		Iterator<DeferredAction> it = state.deferredActions.iterator();
+		while (it.hasNext()) {
+			DeferredAction action = it.next();
+			if (action.fireAtTick() < now - DeferredAction.STALE_TICKS) {
+				it.remove();
+				changed = true;
+			} else if (action.fireAtTick() <= now) {
+				dispatchDeferred(server, action);
+				it.remove();
+				changed = true;
+			}
+		}
+		if (changed) {
+			state.setDirty();
+		}
+		return changed;
+	}
+
+	private static void dispatchDeferred(MinecraftServer server, DeferredAction action) {
+		if (DeferredAction.KIND_LIGHTNING.equals(action.kind())) {
+			ServerPlayer victim = server.getPlayerList().getPlayer(action.victimUuid());
+			if (victim != null && !victim.isRemoved()) {
+				spawnLightningNear(victim);
+			}
+		} else {
+			RandomChaosMod.LOGGER.warn("Unknown deferred action kind: {}", action.kind());
+		}
+	}
+
+	public static void spawnLightningNear(ServerPlayer victim) {
+		ServerLevel level = victim.level();
+		RandomSource rng = level.getRandom();
+		double angle = rng.nextDouble() * Math.PI * 2;
+		double distance = 2 + rng.nextInt(3);
+		double x = victim.getX() + Math.cos(angle) * distance;
+		double z = victim.getZ() + Math.sin(angle) * distance;
+
+		LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(level, EntitySpawnReason.EVENT);
+		if (bolt == null) {
+			RandomChaosMod.LOGGER.warn("Failed to create lightning entity");
+			return;
+		}
+		bolt.setPos(x, victim.getY(), z);
+		bolt.setVisualOnly(false);
+		level.addFreshEntity(bolt);
 	}
 
 	public static UUID pickVictimUuid(List<UUID> playerUuids, UUID lastVictimUuid, int consecutivePicks, RandomSource rng) {

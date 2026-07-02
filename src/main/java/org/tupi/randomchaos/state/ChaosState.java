@@ -1,5 +1,7 @@
 package org.tupi.randomchaos.state;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,13 +18,6 @@ import org.tupi.randomchaos.RandomChaosMod;
 public class ChaosState extends SavedData {
 	private static final String DATA_NAME = "randomchaos_state";
 
-	public static final SavedDataType<ChaosState> TYPE = new SavedDataType<>(
-		RandomChaosMod.id(DATA_NAME),
-		ChaosState::new,
-		ChaosState.CODEC,
-		null
-	);
-
 	public static final Codec<ChaosState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 		Codec.LONG.fieldOf("challenge_start_tick").forGetter(s -> s.challengeStartTick),
 		Codec.LONG.fieldOf("challenge_end_tick").forGetter(s -> s.challengeEndTick),
@@ -31,9 +26,12 @@ public class ChaosState extends SavedData {
 		UUIDUtil.CODEC.optionalFieldOf("current_victim_uuid").forGetter(s -> Optional.ofNullable(s.currentVictimUuid)),
 		Codec.LONG.fieldOf("current_effect_expiry_tick").forGetter(s -> s.currentEffectExpiryTick),
 		UUIDUtil.CODEC.optionalFieldOf("last_victim_uuid").forGetter(s -> Optional.ofNullable(s.lastVictimUuid)),
-		Codec.INT.fieldOf("consecutive_picks").forGetter(s -> s.consecutivePicks)
+		Codec.INT.fieldOf("consecutive_picks").forGetter(s -> s.consecutivePicks),
+		Codec.INT.optionalFieldOf("picks_since_last_major", 0).forGetter(s -> s.picksSinceLastMajor),
+		DeferredAction.CODEC.listOf().optionalFieldOf("deferred_actions").forGetter(s -> Optional.of(s.deferredActions))
 	).apply(instance, (challengeStartTick, challengeEndTick, nextEventTick, currentEventId,
-			currentVictimUuid, currentEffectExpiryTick, lastVictimUuid, consecutivePicks) -> {
+			currentVictimUuid, currentEffectExpiryTick, lastVictimUuid, consecutivePicks,
+			picksSinceLastMajor, deferredActions) -> {
 		ChaosState state = new ChaosState();
 		state.challengeStartTick = challengeStartTick;
 		state.challengeEndTick = challengeEndTick;
@@ -43,8 +41,17 @@ public class ChaosState extends SavedData {
 		state.currentEffectExpiryTick = currentEffectExpiryTick;
 		state.lastVictimUuid = lastVictimUuid.orElse(null);
 		state.consecutivePicks = consecutivePicks;
+		state.picksSinceLastMajor = picksSinceLastMajor;
+		state.deferredActions = new ArrayList<>(deferredActions.orElseGet(ArrayList::new));
 		return state;
 	}));
+
+	public static final SavedDataType<ChaosState> TYPE = new SavedDataType<>(
+		RandomChaosMod.id(DATA_NAME),
+		ChaosState::new,
+		ChaosState.CODEC,
+		null
+	);
 
 	public long challengeStartTick;
 	public long challengeEndTick;
@@ -54,8 +61,18 @@ public class ChaosState extends SavedData {
 	public long currentEffectExpiryTick;
 	public UUID lastVictimUuid;
 	public int consecutivePicks;
+	public int picksSinceLastMajor;
+	public List<DeferredAction> deferredActions = new ArrayList<>();
 
 	public ChaosState() {
+	}
+
+	public void enqueueDeferred(DeferredAction action) {
+		deferredActions.add(action);
+		while (deferredActions.size() > DeferredAction.MAX_QUEUE) {
+			deferredActions.remove(0);
+		}
+		setDirty();
 	}
 
 	public static ChaosState get(MinecraftServer server) {

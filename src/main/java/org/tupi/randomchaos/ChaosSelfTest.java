@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import net.minecraft.util.RandomSource;
 
+import org.tupi.randomchaos.event.ChaosTier;
 import org.tupi.randomchaos.scheduler.ChaosScheduler;
 
 public final class ChaosSelfTest {
@@ -24,6 +25,12 @@ public final class ChaosSelfTest {
 		t.testPickVictimUuidEmptyThrows();
 		t.testPickVictimUuidNoFiveInARow();
 		t.testPickVictimUuidFallback();
+		t.testChooseTierMajorBlockedByCooldown();
+		t.testChooseTierMajorAllowed();
+		t.testChooseTierWeightDistribution();
+		t.testChooseTierFallbackEmptyPool();
+		t.testChooseTierAllEmptyThrows();
+		t.testChooseTierOnlyMajorOnCooldownRelaxes();
 		} catch (Throwable e) {
 			RandomChaosMod.LOGGER.error("Random Chaos self-test threw unexpectedly", e);
 			throw new AssertionError("self-test threw: " + e.getMessage(), e);
@@ -121,6 +128,69 @@ public final class ChaosSelfTest {
 		List<UUID> players = Arrays.asList(a, b);
 		UUID picked = ChaosScheduler.pickVictimUuid(players, a, 4, new FixedIndexRng(0));
 		check("pick: 16-rejection fallback returns alternative", b.equals(picked), "got " + picked);
+	}
+
+	private void testChooseTierMajorBlockedByCooldown() {
+		RandomSource rng = RandomSource.create();
+		boolean majorSeen = false;
+		for (int i = 0; i < 2000; i++) {
+			ChaosTier t = ChaosScheduler.chooseTier(rng, 5, 6, 50, 35, 40, true, true, true);
+			if (t == ChaosTier.MAJOR) {
+				majorSeen = true;
+			}
+		}
+		check("tier: MAJOR blocked while picksSinceLastMajor < cooldown", !majorSeen, "MAJOR was picked during cooldown");
+	}
+
+	private void testChooseTierMajorAllowed() {
+		ChaosTier t = ChaosScheduler.chooseTier(new FixedIndexRng(0), 6, 6, 0, 0, 1, true, true, true);
+		check("tier: MAJOR picked when eligible and weighted", t == ChaosTier.MAJOR, "got " + t);
+	}
+
+	private void testChooseTierWeightDistribution() {
+		RandomSource rng = RandomSource.create();
+		int minor = 0, medium = 0, major = 0;
+		int n = 20000;
+		for (int i = 0; i < n; i++) {
+			ChaosTier t = ChaosScheduler.chooseTier(rng, 1, 1, 50, 35, 40, true, true, true);
+			switch (t) {
+				case MINOR -> minor++;
+				case MEDIUM -> medium++;
+				case MAJOR -> major++;
+			}
+		}
+		double eMin = n * 50.0 / 125.0, eMed = n * 35.0 / 125.0, eMaj = n * 40.0 / 125.0;
+		double tol = n * 0.05;
+		check("tier: weight distribution MINOR ~40%", Math.abs(minor - eMin) <= tol, "minor=" + minor + " exp~" + (int) eMin);
+		check("tier: weight distribution MEDIUM ~28%", Math.abs(medium - eMed) <= tol, "medium=" + medium + " exp~" + (int) eMed);
+		check("tier: weight distribution MAJOR ~32%", Math.abs(major - eMaj) <= tol, "major=" + major + " exp~" + (int) eMaj);
+	}
+
+	private void testChooseTierFallbackEmptyPool() {
+		RandomSource rng = RandomSource.create();
+		boolean noMinorLeak = true;
+		for (int i = 0; i < 500; i++) {
+			ChaosTier t = ChaosScheduler.chooseTier(rng, 6, 6, 10, 5, 5, false, true, true);
+			if (t == ChaosTier.MINOR) {
+				noMinorLeak = false;
+			}
+		}
+		check("tier: empty MINOR pool never selected", noMinorLeak, "MINOR was selected despite empty pool");
+	}
+
+	private void testChooseTierAllEmptyThrows() {
+		boolean threw = false;
+		try {
+			ChaosScheduler.chooseTier(RandomSource.create(), 6, 6, 50, 35, 40, false, false, false);
+		} catch (IllegalStateException expected) {
+			threw = true;
+		}
+		check("tier: all tiers empty throws IllegalStateException", threw, "no exception thrown");
+	}
+
+	private void testChooseTierOnlyMajorOnCooldownRelaxes() {
+		ChaosTier t = ChaosScheduler.chooseTier(new FixedIndexRng(0), 0, 6, 50, 35, 40, false, false, true);
+		check("tier: only-MAJOR-on-cooldown relaxes to MAJOR", t == ChaosTier.MAJOR, "got " + t);
 	}
 
 	private static final class FixedIndexRng implements RandomSource {

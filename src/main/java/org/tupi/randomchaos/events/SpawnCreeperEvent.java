@@ -6,21 +6,26 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.monster.Creeper;
 
 import org.tupi.randomchaos.RandomChaosMod;
 import org.tupi.randomchaos.event.ChaosEvent;
 import org.tupi.randomchaos.event.ChaosTier;
 
-public class SpawnZombieEvent implements ChaosEvent {
+public class SpawnCreeperEvent implements ChaosEvent {
     @Override
     public Identifier id() {
-        return RandomChaosMod.id("spawn_zombie");
+        return RandomChaosMod.id("spawn_creeper");
     }
 
     @Override
     public ChaosTier tier() {
         return ChaosTier.MEDIUM;
+    }
+
+    @Override
+    public int defaultDurationTicks() {
+        return 0;
     }
 
     @Override
@@ -30,27 +35,18 @@ public class SpawnZombieEvent implements ChaosEvent {
 
         double angle = rng.nextDouble() * Math.PI * 2;
         double distance = 3 + rng.nextInt(3);
-        double dx = Math.cos(angle) * distance;
-        double dz = Math.sin(angle) * distance;
-        double x = victim.getX() + dx;
-        double y = victim.getY();
-        double z = victim.getZ() + dz;
+        double x = victim.getX() + Math.cos(angle) * distance;
+        double z = victim.getZ() + Math.sin(angle) * distance;
 
-        Zombie zombie = EntityType.ZOMBIE.create(level, EntitySpawnReason.EVENT);
-        if (zombie == null) {
-            RandomChaosMod.LOGGER.warn("Failed to create zombie entity");
+        Creeper creeper = EntityType.CREEPER.create(level, EntitySpawnReason.EVENT);
+        if (creeper == null) {
+            RandomChaosMod.LOGGER.warn("Failed to create creeper entity");
             return;
         }
+        creeper.setPos(x, victim.getY(), z);
+        creeper.setYRot(rng.nextFloat() * 360f);
+        level.addFreshEntity(creeper);
 
-        zombie.setPos(x, y, z);
-        zombie.setYRot(rng.nextFloat() * 360f);
-        level.addFreshEntity(zombie);
-
-        RandomChaosMod.LOGGER.info("Spawned zombie near {}", victim.getName().getString());
-    }
-
-    @Override
-    public int defaultDurationTicks() {
-        return 0;
+        RandomChaosMod.LOGGER.info("Spawned creeper near {}", victim.getName().getString());
     }
 }
