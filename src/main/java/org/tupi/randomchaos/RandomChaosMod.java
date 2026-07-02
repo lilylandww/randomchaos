@@ -26,6 +26,9 @@ import org.tupi.randomchaos.events.TeleportToGroundEvent;
 import org.tupi.randomchaos.events.ThunderStrikeEvent;
 import org.tupi.randomchaos.events.AdventureModeEvent;
 import org.tupi.randomchaos.events.SlownessEvent;
+import org.tupi.randomchaos.events.ClayFillEvent;
+import org.tupi.randomchaos.events.PhoenixPathEvent;
+import org.tupi.randomchaos.events.LeavesOnBreakEvent;
 import org.tupi.randomchaos.lifecycle.ChaosLifecycle;
 import org.tupi.randomchaos.scheduler.ChaosScheduler;
 
@@ -59,6 +62,9 @@ public class RandomChaosMod implements ModInitializer {
 		registry.register(new CraterEvent());
 		registry.register(new AdventureModeEvent());
 		registry.register(new SlownessEvent());
+		registry.register(new ClayFillEvent());
+		registry.register(new PhoenixPathEvent());
+		registry.register(new LeavesOnBreakEvent());
 
 		ServerTickEvents.END_SERVER_TICK.register(ChaosScheduler::tick);
 		ChaosLifecycle.register();
