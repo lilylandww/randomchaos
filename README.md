@@ -58,6 +58,8 @@ editing the file directly (run `/randomchaos reload` after editing).
   "majorCooldownPicks": 6,
   "minorWeight": 50,
   "mediumWeight": 35,
-  "majorWeight": 40
+  "majorWeight": 40,
+  "minorCooldown": 3,
+  "mediumCooldown": 4
 }
 ```

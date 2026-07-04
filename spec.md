@@ -56,7 +56,9 @@ When `now >= nextEventTick` and the challenge is active:
    empty, fall back to the next non-empty tier (MINOR → MEDIUM → MAJOR). If
    all pools are empty → push forward and wait.
 5. **Pick an event** uniformly at random within the chosen tier from
-   `ChaosEventRegistry`.
+   `ChaosEventRegistry`. Events recently picked from the same tier are
+   **excluded** via the per-event cooldown window (§6a). If all events in the
+   tier are on cooldown, the restriction relaxes and the full pool is used.
 6. Apply it (`event.apply(victim)`); failures are caught and logged so a
    buggy event never crashes the tick loop.
 7. Write the result into state:
@@ -164,7 +166,9 @@ defaults if missing or unreadable (parse failures fall back to defaults with an
   "majorCooldownPicks": 6,
   "minorWeight": 50,
   "mediumWeight": 35,
-  "majorWeight": 40
+  "majorWeight": 40,
+  "minorCooldown": 3,
+  "mediumCooldown": 4
 }
 ```
 
@@ -176,6 +180,8 @@ defaults if missing or unreadable (parse failures fall back to defaults with an
 | `minorWeight` | `50` | `≥ 0` (else reset to 50 + warn) | Relative weight for MINOR tier. |
 | `mediumWeight` | `35` | `≥ 0` (else reset to 35 + warn) | Relative weight for MEDIUM tier. |
 | `majorWeight` | `40` | `≥ 0` (else reset to 40 + warn) | Relative weight for MAJOR tier. |
+| `minorCooldown` | `3` | `≥ 0` (else clamped to 3 + warn) | Per-event cooldown window size for MINOR tier. `0` disables. |
+| `mediumCooldown` | `4` | `≥ 0` (else clamped to 4 + warn) | Per-event cooldown window size for MEDIUM tier. `0` disables. |
 
 All three weights must not be simultaneously zero (reset to defaults + warn).
 Weights are normalized over the tiers available at each pick; a tier with no
@@ -240,8 +246,36 @@ Adding an event:
 `pickRandom` when empty. Each event declares a `ChaosTier` (`MINOR`, `MEDIUM`,
 `MAJOR`); the scheduler picks a tier via weighted random with a MAJOR cooldown
 (`majorCooldownPicks`, default 6 — MAJOR fires at most once every 6 events) and
-then selects an event uniformly within that tier. Per-event weights are not yet
-supported (tier-level weights are configurable in `randomchaos.json`).
+then selects an event uniformly within that tier.
+
+### Per-event cooldown
+
+To prevent the same event from repeating too often, the registry maintains a
+sliding window of recent picks per tier. When `pickRandom(rng, tier)` is called:
+
+1. The recent-pick set for that tier is collected (a `Deque<Identifier>`).
+2. Events whose id appears in the set are excluded via `applyCooldown`.
+3. If *every* event in the tier is on cooldown, the restriction **relaxes** and
+   the full pool is used.
+4. The picked event's id is recorded in the window (oldest entries are evicted
+   when the window exceeds its configured size).
+
+Window sizes are configurable per tier in `config/randomchaos.json`:
+
+| Config key | Default | Valid | Notes |
+|---|---|---|---|
+| `minorCooldown` | `3` | `≥ 0` (clamped) | How many recent MINOR picks to remember. `0` disables. |
+| `mediumCooldown` | `4` | `≥ 0` (clamped) | How many recent MEDIUM picks to remember. `0` disables. |
+
+MAJOR has no per-event cooldown (repetition is already limited by
+`majorCooldownPicks`). Cooldown windows are **in-memory only** — they reset on
+server restart.
+
+The `/randomchaos show` command does not currently display per-event cooldown
+values (only `majorCooldownPicks`).
+
+Per-event weights are not yet supported (tier-level weights are configurable in
+`randomchaos.json`).
 
 ## 11. Commands
 

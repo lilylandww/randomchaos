@@ -36,6 +36,10 @@ A successful `build` includes `compileJava` (main + client source sets) and `run
 - Package everything under `org.tupi.randomchaos`.
 - Use `RandomChaosMod.LOGGER` for logging; `RandomChaosMod.id(path)` for `Identifier`s.
 - Server-only logic goes in `src/main`; rendering/UI/screens go in `src/client`.
+- **Keep docs in sync.** Any significant change — new event, command, config key,
+  behaviour, or workflow — must update the relevant doc under `docs/` and
+  `spec.md` / `README.md` if it describes the changed surface. Out-of-date docs
+  are a bug.
 
 ## Git
 - Never commit to `main`. Branch as `agent/<task>` or `feat/<task>`.
