@@ -38,9 +38,9 @@ Events are grouped into three difficulty tiers:
 
 | Tier | Examples | Effect |
 |---|---|---|
-| **MINOR** | hunger drain, spider spawn, cobble cage, adventure mode, clay fill, leaves on break | Minor inconveniences |
-| **MEDIUM** | zombie spawn, mining fatigue, creeper, dizziness, rainbow road, slowness, phoenix path | Sabotage |
-| **MAJOR** | blindness, teleport to ground, thunder ×3, crater | Severe disruption |
+| **MINOR** | hunger drain, spider spawn, cobble cage, adventure mode, clay fill, leaves on break, heavy shoes, hotbar shuffle, pumpkin head, snack time, spring step, sugar rush | Minor inconveniences |
+| **MEDIUM** | zombie spawn, mining fatigue, creeper, dizziness, rainbow road, slowness, phoenix path, bee swarm, butter fingers, cat eyes, sudden spring | Sabotage |
+| **MAJOR** | blindness, teleport to ground, thunder ×3, crater, gravity shift, the gang's all here | Severe disruption |
 
 The picker uses weighted random selection across tiers, with a hard ceiling:
 **MAJOR events fire at most once every 6 picks** (configurable via

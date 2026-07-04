@@ -275,7 +275,11 @@ src/main/java/org/tupi/randomchaos/
 │              DizzinessEvent, RainbowRoadEvent, BlindnessEvent,
 │              TeleportToGroundEvent, ThunderStrikeEvent, CraterEvent,
 │              AdventureModeEvent, SlownessEvent, ClayFillEvent,
-│              PhoenixPathEvent, LeavesOnBreakEvent
+│              PhoenixPathEvent, LeavesOnBreakEvent,
+│              BeeSwarmEvent, ButterFingersEvent, CatEyesEvent,
+│              GravityShiftEvent, HeavyShoesEvent, HotbarShuffleEvent,
+│              PumpkinHeadEvent, SnackTimeEvent, SpringStepEvent,
+│              SuddenSpringEvent, SugarRushEvent, TheGangsAllHereEvent
 ├── scheduler/ ChaosScheduler.java     // tick loop, chooseTier, deferred drain
 ├── lifecycle/ ChaosLifecycle.java     // first-join start, dragon-death end, disconnect handling
 ├── net/       ChaosStatePayload.java, ChaosNetworking.java
